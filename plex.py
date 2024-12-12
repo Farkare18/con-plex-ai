@@ -1,47 +1,3 @@
-# import streamlit as st
-# import random
-# import time
-# import backend
-
-
-# def response_generator(prompt):
-#     response = backend.GenerateResponse(prompt)
-#     for word in response.split():
-#         yield word + " "
-#         time.sleep(0.05)
-
-# st.title("CON AI")
-
-# # Initialize chat history
-# if "messages" not in st.session_state:
-#     st.session_state.messages = []
-
-# # Display chat messages from history on app rerun
-# for message in st.session_state.messages:
-#     with st.chat_message(message["role"]):
-#         st.markdown(message["content"])
-
-# # Accept user input
-# if prompt := st.chat_input("What is up?"):
-#     # Display user message in chat message container
-#     with st.chat_message("user"):
-#         st.markdown(prompt)
-#     #display assistant response in chat message container
-#     with st.chat_message("assistant"):
-#         response = st.write_stream(response_generator(prompt))
-#     # Add user message to chat history
-#     st.session_state.messages.append({"role": "assistant", "content": response})
-
-#     # Add assistant message to chat history
-#     st.session_state.messages.append({"role": "user", "content": prompt})
-
-#     #display assistant response in chat message container
-#     with st.chat_message("assistant"):
-#         response = st.write_stream(response_generator(prompt))
-#     # Add user message to chat history
-#     st.session_state.messages.append({"role": "assistant", "content": response})
-
-
 import streamlit as st
 import random
 import time
@@ -54,11 +10,36 @@ engine = pyttsx3.init()
 engine.setProperty('rate', 150)  # Adjust speech rate
 engine.setProperty('voice', engine.getProperty('voices')[0].id)  # Choose a voice
 
+# Sidebar
+st.sidebar.title("Settings")
+if st.sidebar.button("Clear Chat"):
+    st.session_state.messages = []
+
+assistant_personality = st.sidebar.selectbox(
+    "Assistant Personality",
+    options=["Friendly", "Professional", "Witty", "Casual"],
+    index=0
+)
+response_speed = st.sidebar.slider("Response Speed (seconds per word):", 0.01, 0.5, 0.05, 0.01)
+st.sidebar.markdown("### About")
+st.sidebar.info(
+    "CON-plex AI is a conversational assistant built with Streamlit. "
+    "It supports text and voice interaction and adapts to your preferred personality style."
+)
+
+# Function to generate responses
 def response_generator(prompt):
-    response = backend.GenerateResponse(prompt)
+    personality_map = {
+        "Friendly": "I am here to help in the most cheerful way!",
+        "Professional": "I aim to maintain a professional tone in all interactions.",
+        "Witty": "Let me spice up the answers with some humor!",
+        "Casual": "Let's keep it chill and relaxed."
+    }
+    personality_intro = personality_map.get(assistant_personality, "")
+    response = personality_intro + " " + backend.GenerateResponse(prompt)
     for word in response.split():
         yield word + " "
-        time.sleep(0.05)
+        time.sleep(response_speed)
 
 # Function to play audio response
 def speak(text):
@@ -68,35 +49,17 @@ def speak(text):
 # Function for voice input
 def listen():
     recognizer = sr.Recognizer()
-    with sr.Microphone() as source:
-        st.info("Listening...")
-        try:
-            audio = recognizer.listen(source, timeout=5)
-            st.info("Processing...")
-            return recognizer.recognize_google(audio)
-        except sr.UnknownValueError:
-            return "Sorry, I didn't catch that."
-        except sr.RequestError:
-            return "Speech recognition service is unavailable."
-        except sr.WaitTimeoutError:
-            return "No input detected."
-
-def listen():
-    recognizer = sr.Recognizer()
-    # Create placeholders for status messages
     listening_placeholder = st.empty()  # Placeholder for "Listening..."
     processing_placeholder = st.empty()  # Placeholder for "Processing..."
     
     try:
         with sr.Microphone() as source:
-            listening_placeholder.info("Listening...")  # Display "Listening..."
+            listening_placeholder.info("Listening...")
             audio = recognizer.listen(source, timeout=None)
-            listening_placeholder.empty()  # Clear "Listening..."
-            
-            processing_placeholder.info("Processing...")  # Display "Processing..."
+            listening_placeholder.empty()
+            processing_placeholder.info("Processing...")
             text = recognizer.recognize_google(audio)
-            processing_placeholder.empty()  # Clear "Processing..."
-            
+            processing_placeholder.empty()
             return text
     except sr.UnknownValueError:
         listening_placeholder.empty()
@@ -115,64 +78,42 @@ def listen():
         processing_placeholder.empty()
         return f"An error occurred: {e}"
 
-st.title("CON-plex AI")
+# Main app
+st.title("CON-plex AI: Your Conversational Assistant")
 
 # Initialize chat history
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display chat messages from history on app rerun
+# Display chat messages from history
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Voice mode toggle
-voice_mode = st.checkbox("Enable Voice Mode")
+# Chat interface
+voice_mode_toggle = st.checkbox("Enable Voice Mode", key="voice_mode")
+prompt = st.chat_input("Type your message here...")
 
-# Voice assistant chat interface
-if voice_mode:
-    prompt = st.text_input("Type or Speak your query:", key="chat-input")
+if voice_mode_toggle and st.button("Speak", key="voice_button"):
+    voice_input = listen()
+    if voice_input:
+        prompt = voice_input
 
-    if st.button("Speak", key="voice-button"):
-        voice_input = listen()
-        if voice_input:
-            prompt = voice_input
+if prompt:
+    with st.chat_message("user"):
+        st.markdown(prompt)
+    st.session_state.messages.append({"role": "user", "content": prompt})
 
-    if prompt:
-        with st.chat_message("user"):
-            st.markdown(prompt)
-        st.session_state.messages.append({"role": "user", "content": prompt})
+    # Generate response
+    response = ''.join(response_generator(prompt))
 
-        # Generate response
-        response = ''.join(response_generator(prompt))
+    # Display assistant response
+    with st.chat_message("assistant"):
+        st.markdown(response)
 
-        with st.chat_message("assistant"):
-            st.markdown(response)
-            # speak(response)
-
-        st.session_state.messages.append({"role": "assistant", "content": response})
-
-# Accept user input from chat input box
-if not voice_mode:
-    if prompt := st.chat_input("ask me anything......"):
-        with st.chat_message("user"):
-            st.markdown(prompt)
-        st.session_state.messages.append({"role": "user", "content": prompt})
-
-        # Generate response
-        response = ''.join(response_generator(prompt))
-
-        # Display assistant response
-        with st.chat_message("assistant"):
-            st.markdown(response)
-
-        # Add messages to chat history
-        st.session_state.messages.append({"role": "assistant", "content": response})
-
-        # Play audio response
+    # Play audio response if voice mode is enabled
+    if voice_mode_toggle:
         speak(response)
 
-        # Add assistant response to chat history
-        st.session_state.messages.append({"role": "assistant", "content": response})
-
-
+    # Add response to chat history
+    st.session_state.messages.append({"role": "assistant", "content": response})
